@@ -15,6 +15,11 @@ export class Game extends Phaser.Scene {
         this.gap = 5;
         this.fruits = ['fruit1', 'fruit2', 'fruit3', 'fruit4'];
         this.state = 'playGame'; // เพิ่ม state
+        // เพิ่มตัวแปรสำหรับ suggestion system
+        this.inactivityTimer = 0;
+        this.suggestionTimer = null;
+        this.suggestionSprites = [];
+        this.lastActivityTime = 0;
     }
 
     create() {
@@ -24,6 +29,11 @@ export class Game extends Phaser.Scene {
         this.isGameRunning = true;
         this.selectedFruits = [];
         this.fruitGrid = [];
+
+        // Reset suggestion system
+        this.inactivityTimer = 0;
+        this.suggestionSprites = [];
+        this.lastActivityTime = 0;
 
         const gameWidth = this.cameras.main.width;
         const gameHeight = this.cameras.main.height;
@@ -51,6 +61,9 @@ export class Game extends Phaser.Scene {
 
         // Start timer
         this.startTimer();
+
+        // Start suggestion timer
+        this.startSuggestionTimer();
 
         // --- เพิ่มคีย์ลัด S เพื่อ shuffle ---
         this.input.keyboard.on('keydown-S', () => {
@@ -145,6 +158,7 @@ export class Game extends Phaser.Scene {
 
     onPointerDown(pointer) {
         if (this.state !== 'playGame') return; // เช็ค state
+        this.updateActivity(); // เพิ่มการอัพเดทกิจกรรม
         const fruit = this.getFruitAtPosition(pointer.x, pointer.y);
         if (fruit) {
             this.startSelection(fruit);
@@ -157,6 +171,7 @@ export class Game extends Phaser.Scene {
     onPointerMove(pointer) {
         if (this.state !== 'playGame') return; // เช็ค state
         if (this.selectedFruits.length > 0) {
+            this.updateActivity(); // เพิ่มการอัพเดทกิจกรรม
             const fruit = this.getFruitAtPosition(pointer.x, pointer.y);
             if (fruit && this.canAddToSelection(fruit)) {
                 this.addToSelection(fruit);
@@ -169,6 +184,7 @@ export class Game extends Phaser.Scene {
 
     onPointerUp(pointer) {
         if (this.state !== 'playGame') return; // เช็ค state
+        this.updateActivity(); // เพิ่มการอัพเดทกิจกรรม
         if (this.selectedFruits.length >= 3) {
             this.processSelection();
         } else {
@@ -257,6 +273,9 @@ export class Game extends Phaser.Scene {
         // รีเซ็ตการเลือก
         this.selectedFruits = [];
 
+        // ลบ suggestions เมื่อมีการเคลื่อนไหว
+        this.clearSuggestion();
+
         // --- เพิ่ม: ให้ผลไม้ตกและเติมใหม่ ---
         this.time.delayedCall(200, () => {
             this.dropFruits(() => {
@@ -290,6 +309,10 @@ export class Game extends Phaser.Scene {
         });
         this.selectedFruits = [];
         this.instructionText.setText('ลากผลไม้ชนิดเดียวกันที่ติดกัน (ขั้นต่ำ 3 ช่อง)');
+        this.instructionText.setFill('#ffffff');
+        
+        // ลบ suggestions เมื่อยกเลิกการเลือก
+        this.clearSuggestion();
     }
 
     showScorePopup(points) {
@@ -459,6 +482,12 @@ export class Game extends Phaser.Scene {
         this.isGameRunning = false;
         this.state = 'gameOver'; // เปลี่ยน state
         this.timer.remove();
+        
+        // หยุด suggestion timer และลบ suggestions
+        if (this.suggestionTimer) {
+            this.suggestionTimer.remove();
+        }
+        this.clearSuggestion();
 
         const gameWidth = this.cameras.main.width;
         const gameHeight = this.cameras.main.height;
@@ -680,5 +709,151 @@ export class Game extends Phaser.Scene {
                 this.shuffleFruits();
             }
         });
+    }
+
+    startSuggestionTimer() {
+        this.suggestionTimer = this.time.addEvent({
+            delay: 1000,
+            callback: this.updateSuggestionTimer,
+            callbackScope: this,
+            loop: true
+        });
+    }
+
+    updateSuggestionTimer() {
+        if (!this.isGameRunning || this.state !== 'playGame') return;
+        
+        this.inactivityTimer++;
+        
+        // ถ้าไม่มีการเคลื่อนไหว 8 วินาที ให้แสดง suggestion
+        if (this.inactivityTimer >= 8) {
+            this.showSuggestion();
+        }
+    }
+
+    // เพิ่มเมธอดสำหรับอัพเดทเวลากิจกรรมล่าสุด
+    updateActivity() {
+        this.lastActivityTime = this.time.now;
+        this.inactivityTimer = 0;
+        this.clearSuggestion();
+    }
+
+    showSuggestion() {
+        // ลบ suggestion เก่าก่อน
+        this.clearSuggestion();
+        
+        // หาตำแหน่งที่สามารถลากได้
+        const suggestions = this.findPossibleMoves();
+        
+        if (suggestions.length > 0) {
+            // แสดง suggestion แรกที่หาได้
+            const suggestion = suggestions[0];
+            
+            // สร้างเอฟเฟกต์ highlight รอบผลไม้ที่แนะนำ
+            suggestion.path.forEach((pos, index) => {
+                const fruit = this.fruitGrid[pos.row][pos.col];
+                if (fruit) {
+                    // สร้าง glow effect
+                    const glow = this.add.graphics()
+                        .setDepth(99);
+                    
+                    // วาดวงกลม highlight
+                    glow.lineStyle(8, 0xffff00, 0.8);
+                    glow.strokeCircle(fruit.x, fruit.y, this.cellSize / 2 + 10);
+                    
+                    // เพิ่มเอฟเฟกต์ pulse
+                    this.tweens.add({
+                        targets: glow,
+                        alpha: 0.3,
+                        duration: 800,
+                        yoyo: true,
+                        repeat: -1
+                    });
+                    
+                    this.suggestionSprites.push(glow);
+                }
+            });
+            
+            // อัพเดทข้อความแนะนำ
+            this.instructionText.setText('💡 คำแนะนำ: ลากผลไม้ตามเส้นสีเหลืองเพื่อได้คะแนน!');
+            this.instructionText.setFill('#ffff00');
+        } else {
+            // ถ้าไม่มีทางลากได้ ให้แนะนำให้กด S เพื่อ shuffle
+            this.instructionText.setText('💡 ไม่มีทางลากได้แล้ว! กดปุ่ม S เพื่อสลับตำแหน่งผลไม้');
+            this.instructionText.setFill('#ffaa00');
+        }
+    }
+
+    clearSuggestion() {
+        // ลบ suggestion sprites ทั้งหมด
+        this.suggestionSprites.forEach(sprite => {
+            if (sprite && sprite.destroy) {
+                sprite.destroy();
+            }
+        });
+        this.suggestionSprites = [];
+        
+        // รีเซ็ตข้อความแนะนำ
+        if (this.selectedFruits.length === 0) {
+            this.instructionText.setText('ลากผลไม้ชนิดเดียวกันที่ติดกัน (ขั้นต่ำ 3 ช่อง)');
+            this.instructionText.setFill('#ffffff');
+        }
+    }
+
+    findPossibleMoves() {
+        const moves = [];
+        
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                const fruit = this.fruitGrid[row][col];
+                if (fruit) {
+                    const path = this.findLongestPath(row, col, fruit.type, []);
+                    if (path.length >= 3) {
+                        moves.push({
+                            startRow: row,
+                            startCol: col,
+                            path: path,
+                            length: path.length
+                        });
+                    }
+                }
+            }
+        }
+        
+        // เรียงลำดับตามความยาวของ path (ยาวที่สุดก่อน)
+        moves.sort((a, b) => b.length - a.length);
+        
+        return moves;
+    }
+
+    findLongestPath(row, col, fruitType, visited) {
+        const key = `${row},${col}`;
+        if (visited.includes(key)) return [];
+        
+        const fruit = this.fruitGrid[row][col];
+        if (!fruit || fruit.type !== fruitType) return [];
+        
+        visited.push(key);
+        let bestPath = [{row: row, col: col}];
+        
+        const directions = [
+            [-1, 0], [1, 0], [0, -1], [0, 1] // ขึ้น, ลง, ซ้าย, ขวา
+        ];
+        
+        for (const [dRow, dCol] of directions) {
+            const newRow = row + dRow;
+            const newCol = col + dCol;
+            
+            if (newRow >= 0 && newRow < this.rows &&
+                newCol >= 0 && newCol < this.cols) {
+                
+                const path = this.findLongestPath(newRow, newCol, fruitType, [...visited]);
+                if (path.length + 1 > bestPath.length) {
+                    bestPath = [{row: row, col: col}, ...path];
+                }
+            }
+        }
+        
+        return bestPath;
     }
 }
