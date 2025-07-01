@@ -2,7 +2,7 @@
 
 เกมลากผลไม้ที่สร้างด้วย Phaser 3 โดยผู้เล่นจะต้องลากผลไม้ชนิดเดียวกันที่อยู่ช่องติดกันเพื่อทำคะแนน
 
-![Game Preview]([https://github.com/your_username/your_repository/blob/main/logo.png](https://img5.pic.in.th/file/secure-sv1/Screenshot-2025-07-01-141058.png))
+![Game Preview]([https://img5.pic.in.th/file/secure-sv1/Screenshot-2025-07-01-141058.png](https://img5.pic.in.th/file/secure-sv1/Screenshot-2025-07-01-141058.png))
 
 ## วิธีการเล่น
 
