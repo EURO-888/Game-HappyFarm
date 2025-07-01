@@ -28,7 +28,7 @@ export class Game extends Phaser.Scene {
         const gameWidth = this.cameras.main.width;
         const gameHeight = this.cameras.main.height;
 
-        // Add background image and scale it to fill the entire screen
+        // background Image
         this.add.image(0, 0, 'background-play')
             .setOrigin(0, 0)
             .setDisplaySize(gameWidth, gameHeight);
@@ -592,6 +592,7 @@ export class Game extends Phaser.Scene {
                 }
             }
         }
+        
         // รอ tween ทุกตัวเสร็จ
         if (tweens.length > 0) {
             this.time.delayedCall(250, onComplete);

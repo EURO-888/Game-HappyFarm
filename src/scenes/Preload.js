@@ -86,6 +86,9 @@ export class Preload extends Phaser.Scene {
         this.load.image('fruit3-active', 'assets/FRUIT3-ACTIVE.png');
         this.load.image('fruit4', 'assets/FRUIT4.png');
         this.load.image('fruit4-active', 'assets/FRUIT4-ACTIVE.png');
+
+        this.load.font('62Regular', 'assets/fonts/62_REGULAR.otf', 'opentype');
+        this.load.font('4Believe', 'assets/fonts/4Believe.ttf', 'truetype');
     }
 
     create() {
